@@ -57,6 +57,7 @@ def analyze_content_with_gemini(pdf_path, page_number, use_image=True):
     - 圖表標籤和圖表說明
     - 代碼片段
     - 作者資訊和單純的標題
+    3. 除了忽略的內容類型，其他內容盡量保留
 
     對於符合條件的說明型文字段落：
     1. 將每個段落標記為 "[[段落N]]"（N 是段落編號）
@@ -100,7 +101,7 @@ def analyze_content_with_gemini(pdf_path, page_number, use_image=True):
     return response.text
 
 def filter_short_paragraphs(paragraphs, min_length=10):
-    """過濾掉長度過短的段落
+    """過濾掉長度過短的段落，但始終保留第一和最後一個段落
     
     Args:
         paragraphs: 段落列表
@@ -111,10 +112,22 @@ def filter_short_paragraphs(paragraphs, min_length=10):
     """
     filtered_paragraphs = []
     
+    # 如果沒有段落，直接返回空列表
+    if not paragraphs:
+        return filtered_paragraphs
+    
+    # 遍歷所有段落
     for i, paragraph in enumerate(paragraphs):
         # 移除空白字符後計算長度
         trimmed = paragraph.strip()
-        if len(trimmed) >= min_length:
+        
+        # 如果是第一段或最後一段，無論長度都保留
+        if i == 0 or i == len(paragraphs) - 1:
+            filtered_paragraphs.append(paragraph)
+            if len(trimmed) < min_length:
+                print(f"保留第{'一' if i == 0 else '最後一'}段 (長度: {len(trimmed)}): '{trimmed}'")
+        # 其他段落依據長度決定是否保留
+        elif len(trimmed) >= min_length:
             filtered_paragraphs.append(paragraph)
         else:
             print(f"已過濾段落 {i+1} (長度: {len(trimmed)}): '{trimmed}'")
@@ -135,7 +148,7 @@ def extract_filtered_paragraphs(analysis_result):
     
     return paragraphs
 
-def save_paragraphs_to_files(analysis_result, output_dir="output_paragraphs", min_length=30):
+def save_paragraphs_to_files(analysis_result, output_dir="output_paragraphs2", min_length=30):
     """將 Gemini 分析後的段落保存為單獨的文本文件"""
     # 創建輸出目錄
     os.makedirs(output_dir, exist_ok=True)
