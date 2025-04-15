@@ -8,7 +8,7 @@ from PIL import Image
 import io
 import time
 
-api_key = "api_key"
+api_key = "AIzaSyDYs1XBl7tT36ym7-Z6sK_ckdTzhkc1QDM"
 
 def extract_page_as_text(pdf_path, page_number):
     """提取 PDF 特定頁面的文本，保留段落和基本排版"""
@@ -57,6 +57,8 @@ def analyze_content_with_gemini(pdf_path, page_number, use_image=True):
     - 圖表標籤和圖表說明
     - 代碼片段
     - 作者資訊和單純的標題
+    - 文件截圖
+    3. 有些段落會因為換頁被分割在下一頁的上方，請不要忽略他們
 
     對於符合條件的說明型文字段落：
     1. 將每個段落標記為 "[[段落N]]"（N 是段落編號）
@@ -100,7 +102,7 @@ def analyze_content_with_gemini(pdf_path, page_number, use_image=True):
     return response.text
 
 def filter_short_paragraphs(paragraphs, min_length=10):
-    """過濾掉長度過短的段落
+    """過濾掉長度過短的段落，但始終保留第一和最後一個段落
     
     Args:
         paragraphs: 段落列表
@@ -111,10 +113,22 @@ def filter_short_paragraphs(paragraphs, min_length=10):
     """
     filtered_paragraphs = []
     
+    # 如果沒有段落，直接返回空列表
+    if not paragraphs:
+        return filtered_paragraphs
+    
+    # 遍歷所有段落
     for i, paragraph in enumerate(paragraphs):
         # 移除空白字符後計算長度
         trimmed = paragraph.strip()
-        if len(trimmed) >= min_length:
+        
+        # 如果是第一段或最後一段，無論長度都保留
+        if i == 0 or i == len(paragraphs) - 1:
+            filtered_paragraphs.append(paragraph)
+            if len(trimmed) < min_length:
+                print(f"保留第{'一' if i == 0 else '最後一'}段 (長度: {len(trimmed)}): '{trimmed}'")
+        # 其他段落依據長度決定是否保留
+        elif len(trimmed) >= min_length:
             filtered_paragraphs.append(paragraph)
         else:
             print(f"已過濾段落 {i+1} (長度: {len(trimmed)}): '{trimmed}'")
@@ -135,7 +149,7 @@ def extract_filtered_paragraphs(analysis_result):
     
     return paragraphs
 
-def save_paragraphs_to_files(analysis_result, output_dir="output_paragraphs", min_length=30):
+def save_paragraphs_to_files(analysis_result, output_dir, min_length=30):
     """將 Gemini 分析後的段落保存為單獨的文本文件"""
     # 創建輸出目錄
     os.makedirs(output_dir, exist_ok=True)
@@ -154,7 +168,7 @@ def save_paragraphs_to_files(analysis_result, output_dir="output_paragraphs", mi
     return len(filtered_paragraphs)
 
 # 主函數
-def process_pdf_page(pdf_path, page_number, use_image=True, min_length=30):
+def process_pdf_page(pdf_path, page_number, use_image=True, min_length=30, output_dir='.'):
     """處理 PDF 頁面並使用 Gemini 進行分析"""
     print(f"正在處理 PDF: {pdf_path}, 頁面: {page_number}")
     
@@ -162,22 +176,41 @@ def process_pdf_page(pdf_path, page_number, use_image=True, min_length=30):
     analysis = analyze_content_with_gemini(pdf_path, page_number, use_image)
     
     # 保存段落
-    num_paragraphs = save_paragraphs_to_files(analysis, min_length=min_length, output_dir=f"output_paragraphs/{page_number}")
+    num_paragraphs = save_paragraphs_to_files(analysis, min_length=min_length, output_dir=f"{output_dir}/{page_number}")
     
     print(f"分析完成，共識別出 {num_paragraphs} 個段落")
-    print(f"段落已保存到 output_paragraphs 目錄")
+    print(f"段落已保存到 output_paragraphs2 目錄")
     
     return analysis
 
 # 使用範例
 if __name__ == "__main__":
-    pdf_path = "./pdf_file/台大論文2.pdf"  # 替換為你的PDF路徑
+    pdf_path = "./pdf_file/中央論文1.pdf"  # 替換為你的PDF路徑
+    output_dir = "output_paragraphs1"
     start_page_number = 0  # PDF頁碼（從0開始）
     pdf_length = len(fitz.open(pdf_path))
+    
+    # 存儲處理過的頁碼
+    processed_pages = []
+    
     for page_number in range(start_page_number, pdf_length, 1):
         # 執行分析（使用圖像模式以保留更多排版信息）
-        analysis_result = process_pdf_page(pdf_path, page_number, use_image=True, min_length=30)
+        analysis_result = process_pdf_page(pdf_path, page_number, use_image=True, min_length=30, output_dir=output_dir)
         
         # 顯示分析結果
         print(f"\n第{page_number}頁分析結果預覽：")
         print(analysis_result[:500] + "..." if len(analysis_result) > 500 else analysis_result)
+        
+        processed_pages.append(page_number)
+        
+    # 第二步：進行段落的二次處理
+    print("\n開始進行段落的二次處理...")
+    
+    # 引入 post_process_paragraphs 函數 (需確保已定義該函數或已導入)
+    from paragraph_post_processor import post_process_paragraphs
+    
+    # 執行段落後處理
+    base_dir = "output_paragraphs2"
+    post_process_paragraphs(base_dir, processed_pages, api_key)
+    
+    print("PDF處理完成！所有段落處理和優化已完成。")
