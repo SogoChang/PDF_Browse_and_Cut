@@ -356,5 +356,5 @@ if __name__ == "__main__":
     base_dir = "output_paragraphs2"
     page_list = [i for i in range(80)]
     page_numbers = [4, 5, 6, 7]  # 範例頁碼
-    api_key = "AIzaSyDYs1XBl7tT36ym7-Z6sK_ckdTzhkc1QDM"
+    api_key = "api_key"
     post_process_paragraphs(base_dir, page_list, api_key)
